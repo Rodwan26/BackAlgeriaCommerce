@@ -1,83 +1,156 @@
 from fastapi import APIRouter
-from sqlalchemy.orm import Session
-
+from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload
 from app.db.database import SessionLocal
 from app.models.product import Product
-from app.schemas.product import ProductCreate
+from app.schemas.product import ProductCreate, ProductResponse
 
 router = APIRouter()
 
-@router.get("/products")
+
+@router.get(
+    "/products",
+    response_model=list[ProductResponse],
+)
 def list_products():
-
     db: Session = SessionLocal()
 
-    products = db.query(Product).order_by(Product.id.desc()).all()
+    try:
+        products = (
+            db.query(Product)
+            .options(joinedload(Product.category))
+            .order_by(Product.id.desc())
+            .all()
+        )
 
-    db.close()
+        return products
 
-    return products
+    finally:
+        db.close()
 
 
-@router.post("/products")
+@router.post(
+    "/products",
+    response_model=ProductResponse,
+)
 def create_product(product: ProductCreate):
-
     db: Session = SessionLocal()
 
-    new_product = Product(
-        name=product.name,
-        description=product.description,
-        price=product.price,
-        image=product.image,
-    )
+    try:
+        new_product = Product(
+            name=product.name,
+            description=product.description,
+            price=product.price,
+            image=product.image,
+            category_id=product.category_id,
+        )
 
-    db.add(new_product)
+        db.add(new_product)
+        db.commit()
+        db.refresh(new_product)
 
-    db.commit()
+        # Load the category before closing the session
+        if new_product.category_id is not None:
+            new_product = (
+                db.query(Product)
+                .options(joinedload(Product.category))
+                .filter(Product.id == new_product.id)
+                .first()
+            )
 
-    db.refresh(new_product)
+        return new_product
 
-    db.close()
+    finally:
+        db.close()
 
-    return new_product
 
 
 @router.delete("/products/{product_id}")
 def delete_product(product_id: int):
-
     db: Session = SessionLocal()
 
-    product = db.query(Product).filter(Product.id == product_id).first()
+    try:
+        product = (
+            db.query(Product)
+            .filter(Product.id == product_id)
+            .first()
+        )
 
-    if not product:
+        if not product:
+            return {"message": "Product not found"}
+
+        db.delete(product)
+        db.commit()
+
+        return {"message": "Product deleted"}
+
+    finally:
         db.close()
-        return {"message": "Product not found"}
 
-    db.delete(product)
-    db.commit()
-    db.close()
-
-    return {"message": "Product deleted"}
-
-
-@router.put("/products/{product_id}")
-def update_product(product_id: int, data: ProductCreate):
-
+@router.get("/products/{product_id}", response_model=ProductResponse)
+def get_product(product_id: int):
     db: Session = SessionLocal()
 
-    product = db.query(Product).filter(Product.id == product_id).first()
+    try:
+        product = (
+            db.query(Product)
+            .options(joinedload(Product.category))
+            .filter(Product.id == product_id)
+            .first()
+        )
 
-    if not product:
+        if not product:
+            return {"message": "Product not found"}
+
+        return product
+
+    finally:
         db.close()
-        return {"message": "Product not found"}
 
-    product.name = data.name
-    product.description = data.description
-    product.price = data.price
-    product.image = data.image
 
-    db.commit()
-    db.refresh(product)
-    db.close()
+@router.put(
+    "/products/{product_id}",
+    response_model=ProductResponse,
+)
+def update_product(
+    product_id: int,
+    data: ProductCreate,
+):
+    db: Session = SessionLocal()
 
-    return product    
+    try:
+        product = (
+            db.query(Product)
+            .filter(Product.id == product_id)
+            .first()
+        )
+
+        if not product:
+            raise HTTPException(
+                status_code=404,
+                detail="Product not found",
+            )
+
+        product.name = data.name
+        product.description = data.description
+        product.price = data.price
+        product.image = data.image
+        product.category_id = data.category_id
+
+        db.commit()
+        db.refresh(product)
+
+        # Reload product with category
+        product = (
+            db.query(Product)
+            .options(joinedload(Product.category))
+            .filter(Product.id == product_id)
+            .first()
+        )
+
+        return product
+
+    finally:
+        db.close()
+
+ 
