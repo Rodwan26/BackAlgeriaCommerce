@@ -1,10 +1,9 @@
 from fastapi import APIRouter
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy.orm import Session, joinedload
 from app.db.database import SessionLocal
 from app.models.product import Product
 from app.schemas.product import ProductCreate, ProductResponse
-
+from fastapi import APIRouter, HTTPException
 router = APIRouter()
 
 

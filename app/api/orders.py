@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException
 from sqlalchemy.orm import Session, joinedload
 
 from app.db.database import SessionLocal
+from app.models.customer import Customer
 from app.models.order import Order
 from app.models.order_item import OrderItem
 from app.models.product import Product
@@ -24,23 +25,49 @@ def create_order(data: OrderCreate):
     db: Session = SessionLocal()
 
     try:
-        total = 0
-        order_items = []
 
-        # Check products and calculate total
-        for item in data.items:
+        # -------------------------------------------------
+        # Validate delivery type
+        # -------------------------------------------------
 
-            product = (
-                db.query(Product)
-                .filter(Product.id == item.product_id)
-                .first()
+        allowed_delivery_types = {
+            "home",
+            "pickup",
+        }
+
+        if data.delivery_type not in allowed_delivery_types:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid delivery type. Use 'home' or 'pickup'.",
             )
 
-            if not product:
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"Product {item.product_id} not found",
-                )
+        # -------------------------------------------------
+        # Validate customer
+        # -------------------------------------------------
+
+        customer = (
+            db.query(Customer)
+            .filter(Customer.id == data.customer_id)
+            .first()
+        )
+
+        if not customer:
+            raise HTTPException(
+                status_code=404,
+                detail="Customer not found",
+            )
+
+        # -------------------------------------------------
+        # Validate items
+        # -------------------------------------------------
+
+        if not data.items:
+            raise HTTPException(
+                status_code=400,
+                detail="Order must contain at least one item",
+            )
+
+        for item in data.items:
 
             if item.quantity <= 0:
                 raise HTTPException(
@@ -48,7 +75,83 @@ def create_order(data: OrderCreate):
                     detail="Quantity must be greater than 0",
                 )
 
+        # -------------------------------------------------
+        # Calculate required quantity per product
+        #
+        # Protects against the same product appearing
+        # multiple times in the same order.
+        # -------------------------------------------------
+
+        required_quantities = {}
+
+        for item in data.items:
+
+            required_quantities[item.product_id] = (
+                required_quantities.get(item.product_id, 0)
+                + item.quantity
+            )
+
+        # -------------------------------------------------
+        # Lock products in a consistent order
+        #
+        # FOR UPDATE prevents concurrent transactions
+        # from modifying the same product simultaneously.
+        # -------------------------------------------------
+
+        products = {}
+
+        for product_id in sorted(required_quantities.keys()):
+
+            product = (
+                db.query(Product)
+                .filter(Product.id == product_id)
+                .with_for_update()
+                .first()
+            )
+
+            if not product:
+
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Product {product_id} not found",
+                )
+
+            products[product_id] = product
+
+        # -------------------------------------------------
+        # Check stock
+        # -------------------------------------------------
+
+        for product_id, required_quantity in required_quantities.items():
+
+            product = products[product_id]
+
+            if required_quantity > product.stock:
+
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        f"Insufficient stock for product "
+                        f"{product.id}. "
+                        f"Available: {product.stock}, "
+                        f"requested: {required_quantity}"
+                    ),
+                )
+
+        # -------------------------------------------------
+        # Calculate total
+        # -------------------------------------------------
+
+        total = 0
+
+        order_items = []
+
+        for item in data.items:
+
+            product = products[item.product_id]
+
             item_total = product.price * item.quantity
+
             total += item_total
 
             order_items.append(
@@ -59,26 +162,55 @@ def create_order(data: OrderCreate):
                 )
             )
 
+        # -------------------------------------------------
+        # Decrease stock
+        # -------------------------------------------------
+
+        for product_id, quantity in required_quantities.items():
+
+            product = products[product_id]
+
+            product.stock -= quantity
+
+        # -------------------------------------------------
         # Create order
+        # -------------------------------------------------
+
         order = Order(
-            customer_name=data.customer_name,
-            customer_phone=data.customer_phone,
-            customer_address=data.customer_address,
+            customer_id=customer.id,
+            delivery_type=data.delivery_type,
             total=total,
             status="pending",
         )
 
         db.add(order)
+
         db.flush()
 
+        # -------------------------------------------------
         # Attach order items
+        # -------------------------------------------------
+
         for item in order_items:
+
             item.order_id = order.id
+
             db.add(item)
+
+        # -------------------------------------------------
+        # Commit everything together
+        #
+        # Order
+        # OrderItems
+        # Stock changes
+        # -------------------------------------------------
 
         db.commit()
 
-        # Reload order with items and products
+        # -------------------------------------------------
+        # Reload complete order
+        # -------------------------------------------------
+
         order = (
             db.query(Order)
             .options(
@@ -92,14 +224,19 @@ def create_order(data: OrderCreate):
         return order
 
     except HTTPException:
+
         db.rollback()
+
         raise
 
     except Exception:
+
         db.rollback()
+
         raise
 
     finally:
+
         db.close()
 
 
@@ -116,6 +253,7 @@ def list_orders():
     db: Session = SessionLocal()
 
     try:
+
         orders = (
             db.query(Order)
             .options(
@@ -129,6 +267,7 @@ def list_orders():
         return orders
 
     finally:
+
         db.close()
 
 
@@ -145,6 +284,7 @@ def get_order(order_id: int):
     db: Session = SessionLocal()
 
     try:
+
         order = (
             db.query(Order)
             .options(
@@ -156,6 +296,7 @@ def get_order(order_id: int):
         )
 
         if not order:
+
             raise HTTPException(
                 status_code=404,
                 detail="Order not found",
@@ -164,6 +305,7 @@ def get_order(order_id: int):
         return order
 
     finally:
+
         db.close()
 
 
@@ -188,6 +330,7 @@ def update_order_status(
         )
 
         if not order:
+
             raise HTTPException(
                 status_code=404,
                 detail="Order not found",
@@ -202,6 +345,7 @@ def update_order_status(
         }
 
         if status not in allowed_statuses:
+
             raise HTTPException(
                 status_code=400,
                 detail="Invalid order status",
@@ -210,6 +354,7 @@ def update_order_status(
         order.status = status
 
         db.commit()
+
         db.refresh(order)
 
         return {
@@ -218,5 +363,5 @@ def update_order_status(
         }
 
     finally:
-        db.close()
 
+        db.close()

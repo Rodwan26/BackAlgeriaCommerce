@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float
+from sqlalchemy import Column, Integer, String, Float, ForeignKey
 from sqlalchemy.orm import relationship
 
 from app.db.database import Base
@@ -12,6 +12,26 @@ class Order(Base):
         primary_key=True,
         index=True,
     )
+
+    # --------------------------------------------------
+    # Customer relationship
+    # --------------------------------------------------
+
+    customer_id = Column(
+        Integer,
+        ForeignKey("customers.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
+    customer = relationship(
+        "Customer",
+        back_populates="orders",
+    )
+
+    # --------------------------------------------------
+    # Legacy customer information
+    # Kept temporarily for existing orders
+    # --------------------------------------------------
 
     customer_name = Column(
         String(120),
@@ -28,6 +48,19 @@ class Order(Base):
         nullable=False,
     )
 
+    # --------------------------------------------------
+    # Delivery
+    # --------------------------------------------------
+
+    delivery_type = Column(
+        String(30),
+        nullable=True,
+    )
+
+    # --------------------------------------------------
+    # Order information
+    # --------------------------------------------------
+
     total = Column(
         Float,
         nullable=False,
@@ -39,9 +72,12 @@ class Order(Base):
         default="pending",
     )
 
+    # --------------------------------------------------
+    # Order items
+    # --------------------------------------------------
+
     items = relationship(
         "OrderItem",
         back_populates="order",
         cascade="all, delete-orphan",
     )
-

@@ -7,15 +7,37 @@ from app.db.database import Base
 class Product(Base):
     __tablename__ = "products"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(
+        Integer,
+        primary_key=True,
+        index=True,
+    )
 
-    name = Column(String, nullable=False)
+    name = Column(
+        String,
+        nullable=False,
+    )
 
-    description = Column(String, nullable=False)
+    description = Column(
+        String,
+        nullable=False,
+    )
 
-    price = Column(Float, nullable=False)
+    price = Column(
+        Float,
+        nullable=False,
+    )
 
-    image = Column(String, nullable=True)
+    stock = Column(
+        Integer,
+        nullable=False,
+        default=0,
+    )
+
+    image = Column(
+        String,
+        nullable=True,
+    )
 
     category_id = Column(
         Integer,
@@ -27,3 +49,4 @@ class Product(Base):
         "Category",
         back_populates="products",
     )
+

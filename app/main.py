@@ -12,6 +12,7 @@ import app.models.product
 import app.models.category
 import app.models.order
 from app.api.dashboard import router as dashboard_router
+from app.api.customers import router as customers_router
 
 app = FastAPI(title="E-Commerce API")
 app.mount(
@@ -34,7 +35,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
+app.include_router(customers_router)
 app.include_router(dashboard_router)
 app.include_router(products_router)
 app.include_router(upload_router)

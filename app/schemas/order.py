@@ -7,9 +7,8 @@ class OrderItemCreate(BaseModel):
 
 
 class OrderCreate(BaseModel):
-    customer_name: str
-    customer_phone: str
-    customer_address: str
+    customer_id: int
+    delivery_type: str
     items: list[OrderItemCreate]
 
 
@@ -19,7 +18,7 @@ class OrderItemProduct(BaseModel):
     price: float
 
     model_config = {
-        "from_attributes": True
+        "from_attributes": True,
     }
 
 
@@ -31,20 +30,18 @@ class OrderItemResponse(BaseModel):
     product: OrderItemProduct
 
     model_config = {
-        "from_attributes": True
+        "from_attributes": True,
     }
 
 
 class OrderResponse(BaseModel):
     id: int
-    customer_name: str
-    customer_phone: str
-    customer_address: str
+    customer_id: int | None
+    delivery_type: str | None
     total: float
     status: str
     items: list[OrderItemResponse]
 
     model_config = {
-        "from_attributes": True
+        "from_attributes": True,
     }
-
