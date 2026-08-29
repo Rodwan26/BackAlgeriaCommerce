@@ -11,8 +11,11 @@ from app.api.categories import router as categories_router
 import app.models.product
 import app.models.category
 import app.models.order
+import app.models.carrier
+import app.models.carrier_connection
 from app.api.dashboard import router as dashboard_router
 from app.api.customers import router as customers_router
+from app.api.shipping import router as shipping_router
 
 app = FastAPI(title="E-Commerce API")
 app.mount(
@@ -41,6 +44,7 @@ app.include_router(products_router)
 app.include_router(upload_router)
 app.include_router(categories_router)
 app.include_router(orders_router)
+app.include_router(shipping_router)
 
 @app.get("/")
 def root():
