@@ -39,6 +39,12 @@ class Product(Base):
         nullable=True,
     )
 
+    status = Column(
+        String,
+        nullable=False,
+        default="draft",
+    )
+
     category_id = Column(
         Integer,
         ForeignKey("categories.id"),
@@ -48,5 +54,28 @@ class Product(Base):
     category = relationship(
         "Category",
         back_populates="products",
+    )
+
+    options = relationship(
+        "ProductOption",
+        back_populates="product",
+        cascade="all, delete-orphan",
+    )
+
+    variants = relationship(
+        "ProductVariant",
+        back_populates="product",
+        cascade="all, delete-orphan",
+    )
+
+    tags = relationship(
+        "ProductTag",
+        back_populates="product",
+        cascade="all, delete-orphan",
+    )
+
+    collections = relationship(
+        "Collection",
+        secondary="product_collections",
     )
 

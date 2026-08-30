@@ -13,6 +13,11 @@ import app.models.category
 import app.models.order
 import app.models.carrier
 import app.models.carrier_connection
+import app.models.product_option
+import app.models.product_variant
+import app.models.product_tag
+import app.models.collection
+import app.models.product_collection
 from app.api.dashboard import router as dashboard_router
 from app.api.customers import router as customers_router
 from app.api.shipping import router as shipping_router
