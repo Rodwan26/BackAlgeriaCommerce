@@ -21,6 +21,7 @@ import app.models.product_collection
 from app.api.dashboard import router as dashboard_router
 from app.api.customers import router as customers_router
 from app.api.shipping import router as shipping_router
+from app.api.collections import router as collections_router
 
 app = FastAPI(title="E-Commerce API")
 app.mount(
@@ -50,6 +51,7 @@ app.include_router(upload_router)
 app.include_router(categories_router)
 app.include_router(orders_router)
 app.include_router(shipping_router)
+app.include_router(collections_router)
 
 @app.get("/")
 def root():

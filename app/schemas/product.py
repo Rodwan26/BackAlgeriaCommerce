@@ -7,6 +7,7 @@ class OptionCreate(BaseModel):
 
 
 class VariantCreate(BaseModel):
+    id: int | None = None
     sku: str | None = None
     price: float | None = None
     stock: int = 0
@@ -71,6 +72,10 @@ class ProductCreate(BaseModel):
     variants: list[VariantCreate] = []
     tags: list[str] = []
     collections: list[int] = []
+
+
+class ProductStatusUpdate(BaseModel):
+    status: str
 
 
 class CategoryInfo(BaseModel):
