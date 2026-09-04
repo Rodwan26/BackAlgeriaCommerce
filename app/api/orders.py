@@ -3,10 +3,15 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.db.database import SessionLocal
 from app.models.customer import Customer
+from app.models.landing_page import LandingPage
 from app.models.order import Order
 from app.models.order_item import OrderItem
 from app.models.product import Product
-from app.schemas.order import OrderCreate, OrderResponse
+from app.schemas.order import (
+    OrderCreate,
+    OrderFromLandingCreate,
+    OrderResponse,
+)
 
 
 router = APIRouter()
@@ -203,6 +208,180 @@ def create_order(data: OrderCreate):
         # Order
         # OrderItems
         # Stock changes
+        # -------------------------------------------------
+
+        db.commit()
+
+        # -------------------------------------------------
+        # Reload complete order
+        # -------------------------------------------------
+
+        order = (
+            db.query(Order)
+            .options(
+                joinedload(Order.items)
+                .joinedload(OrderItem.product)
+            )
+            .filter(Order.id == order.id)
+            .first()
+        )
+
+        return order
+
+    except HTTPException:
+
+        db.rollback()
+
+        raise
+
+    except Exception:
+
+        db.rollback()
+
+        raise
+
+    finally:
+
+        db.close()
+
+
+# =========================================================
+# CREATE ORDER FROM LANDING PAGE
+# =========================================================
+
+@router.post(
+    "/orders/from-landing",
+    response_model=OrderResponse,
+)
+def create_order_from_landing(data: OrderFromLandingCreate):
+
+    db: Session = SessionLocal()
+
+    try:
+
+        # -------------------------------------------------
+        # Find landing page by slug
+        # -------------------------------------------------
+
+        page = (
+            db.query(LandingPage)
+            .filter(LandingPage.slug == data.slug)
+            .first()
+        )
+
+        if not page:
+            raise HTTPException(
+                status_code=400,
+                detail="Landing page not found",
+            )
+
+        if page.product_id is None:
+            raise HTTPException(
+                status_code=400,
+                detail="Landing page has no product",
+            )
+
+        # -------------------------------------------------
+        # Resolve price and delivery from order-form section
+        # -------------------------------------------------
+
+        quantity = max(1, data.quantity)
+
+        order_form = None
+
+        for section in page.sections or []:
+            if (
+                isinstance(section, dict)
+                and section.get("type") == "order-form"
+            ):
+                order_form = section
+                break
+
+        price = 0.0
+        delivery_price = 0.0
+
+        if order_form:
+            price = float(order_form.get("price") or 0)
+            delivery = order_form.get("delivery") or {}
+            if data.delivery_type == "office":
+                delivery_price = float(
+                    delivery.get("officePrice") or 0
+                )
+            else:
+                delivery_price = float(
+                    delivery.get("homePrice") or 0
+                )
+
+        total = (price * quantity) + delivery_price
+
+        # -------------------------------------------------
+        # Lock product and decrease stock
+        # -------------------------------------------------
+
+        product = (
+            db.query(Product)
+            .filter(Product.id == page.product_id)
+            .with_for_update()
+            .first()
+        )
+
+        if not product:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Product {page.product_id} not found",
+            )
+
+        if quantity > product.stock:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Insufficient stock for product "
+                    f"{product.id}. "
+                    f"Available: {product.stock}, "
+                    f"requested: {quantity}"
+                ),
+            )
+
+        product.stock -= quantity
+
+        # -------------------------------------------------
+        # Create order
+        # -------------------------------------------------
+
+        order = Order(
+            customer_id=None,
+            customer_name=data.name,
+            customer_phone=data.phone,
+            customer_address=(
+                data.address
+                if data.address
+                else f"{data.wilaya} - {data.commune}"
+            ),
+            delivery_type=data.delivery_type,
+            total=round(total, 2),
+            status="pending",
+            landing_page_id=page.id,
+        )
+
+        db.add(order)
+
+        db.flush()
+
+        # -------------------------------------------------
+        # Attach order item
+        # -------------------------------------------------
+
+        db.add(
+            OrderItem(
+                order_id=order.id,
+                product_id=product.id,
+                quantity=quantity,
+                price=round(price, 2),
+            )
+        )
+
+        # -------------------------------------------------
+        # Commit order, item and stock change together
         # -------------------------------------------------
 
         db.commit()

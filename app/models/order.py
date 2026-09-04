@@ -58,6 +58,18 @@ class Order(Base):
     )
 
     # --------------------------------------------------
+    # Landing page source
+    # Orders created from a landing page keep a link
+    # to the page that produced them (NULL otherwise).
+    # --------------------------------------------------
+
+    landing_page_id = Column(
+        Integer,
+        ForeignKey("landing_pages.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
+    # --------------------------------------------------
     # Order information
     # --------------------------------------------------
 
