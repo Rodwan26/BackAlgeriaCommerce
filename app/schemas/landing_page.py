@@ -21,11 +21,19 @@ class LandingPageUpdate(BaseModel):
     sections: list[Any] = []
 
 
+class LandingPageProduct(BaseModel):
+    id: int
+    name: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class LandingPageResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
     product_id: Optional[int] = None
+    product: Optional[LandingPageProduct] = None
     slug: str
     title: str
     brand: str

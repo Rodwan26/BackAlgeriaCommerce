@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.db.database import SessionLocal
 from app.models.landing_page import LandingPage
@@ -32,6 +32,7 @@ def list_landing_pages():
     try:
         pages = (
             db.query(LandingPage)
+            .options(joinedload(LandingPage.product))
             .order_by(LandingPage.id.desc())
             .all()
         )
@@ -51,6 +52,7 @@ def get_landing_page(slug: str):
     try:
         page = (
             db.query(LandingPage)
+            .options(joinedload(LandingPage.product))
             .filter(LandingPage.slug == slug)
             .first()
         )
